@@ -1,5 +1,7 @@
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -9,7 +11,8 @@ from loguru import logger
 
 load_dotenv()
 
-# logger.remove()
+# Setup logger
+logger.remove()
 logger.add(
     "logs/record.log",
     format="{message}",
@@ -18,13 +21,20 @@ logger.add(
     retention="10 days",
 )
 
+# Create FastAPI instance
 app = FastAPI()
 TARGET_URL = os.getenv("TARGET_URL")
+
+# Create a thread pool for logging to avoid blocking the main thread
+log_executor = ThreadPoolExecutor(max_workers=1)
+
+# Reuse AsyncClient instance
+client = AsyncClient(timeout=Timeout(30), verify=False)
 
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start_time = time.time()
+    start_time = time.monotonic()
 
     method = request.method
     headers = dict(request.headers)
@@ -32,28 +42,35 @@ async def log_requests(request: Request, call_next):
 
     body = await request.body()
 
-    async with AsyncClient(timeout=Timeout(300), verify=False) as client:
-        response = await client.request(
-            method=method,
-            url=TARGET_URL + request.url.path,
-            headers=headers,
-            content=body,
-        )
+    response = await client.request(
+        method=method,
+        url=TARGET_URL + request.url.path,
+        headers=headers,
+        content=body,
+    )
 
-        log_data = {
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
-            "method": method,
-            "url": request.url.path,
-            "request_headers": headers,
-            "request_body": body.decode() if body else "",
-            "response_headers": dict(response.headers),
-            "response_body": response.text,
-            "duration_ms": round((time.time() - start_time) * 1000, 2),
-        }
-        logger.info(log_data)
+    log_data = {
+        "timestamp": datetime.now().isoformat(),
+        "method": method,
+        "url": request.url.path,
+        "request_headers": headers,
+        "request_body": body.decode() if body else "",
+        "response_headers": dict(response.headers),
+        "response_body": response.text,
+        "duration_ms": round((time.monotonic() - start_time) * 1000, 2),
+    }
 
-        return Response(
-            content=response.content,
-            status_code=response.status_code,
-            headers=response.headers,
-        )
+    # Log asynchronously
+    log_executor.submit(logger.info, log_data)
+
+    return Response(
+        content=response.content,
+        status_code=response.status_code,
+        headers=dict(response.headers),
+    )
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await client.aclose()
+    log_executor.shutdown()

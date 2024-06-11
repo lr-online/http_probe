@@ -53,7 +53,7 @@ async def log_requests(request: Request, call_next):
             "request_body": body.decode() if body else "",
             "response_headers": dict(response.headers),
             "response_body": response.text,
-            "duration": time.time() - start_time,
+            "duration_ms": round((time.time() - start_time) * 1000, 2),
         }
         record_logger.info(log_data)
 

@@ -14,7 +14,7 @@ record_logger = logger.bind()
 
 # 为这个logger实例配置一个handler，将日志信息写入到指定的文件中
 record_logger.remove()
-record_logger.add("logs/record.log", format="{message}", enqueue=True, rotation="1 week", retention="10 days")
+record_logger.add("logs/record.log", format="{message}", enqueue=True, rotation="100 MB", retention="10 days")
 
 
 app = FastAPI()

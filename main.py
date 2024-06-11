@@ -1,11 +1,10 @@
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse, Response
 from httpx import AsyncClient, Timeout
 from loguru import logger
 
@@ -37,37 +36,71 @@ async def log_requests(request: Request, call_next):
     start_time = time.monotonic()
 
     method = request.method
+    path = request.url.path
     headers = dict(request.headers)
     headers["host"] = TARGET_URL.replace("http://", "").replace("https://", "")
 
     body = await request.body()
 
-    response = await client.request(
-        method=method,
-        url=TARGET_URL + request.url.path,
-        headers=headers,
-        content=body,
-    )
+    # version 1: works
+    # response = await client.request(
+    #     method=method,
+    #     url=TARGET_URL + path,
+    #     headers=headers,
+    #     content=body,
+    # )
+    # return Response(
+    #     content=response.content,
+    #     status_code=response.status_code,
+    #     headers=response.headers,
+    # )
 
-    log_data = {
-        "timestamp": datetime.now().isoformat(),
-        "method": method,
-        "url": request.url.path,
-        "request_headers": headers,
-        "request_body": body.decode() if body else "",
-        "response_headers": dict(response.headers),
-        "response_body": response.text,
-        "duration_ms": round((time.monotonic() - start_time) * 1000, 2),
-    }
+    # version 2: works
+    # async with client.stream(
+    #         method=method,
+    #         url=TARGET_URL + path,
+    #         headers=headers,
+    #         content=body,
+    # ) as response:
+    #     response_content = ""
+    #     async for chunk in response.aiter_text():
+    #         response_content += chunk
+    #
+    #     return StreamingResponse(
+    #         content=response_content,
+    #         status_code=response.status_code,
+    #         headers=response.headers,
+    #     )
 
-    # Log asynchronously
-    log_executor.submit(logger.info, log_data)
+    # version 3: not working
+    async with client.stream(
+            method=method,
+            url=TARGET_URL + path,
+            headers=headers,
+            content=body,
+    ) as response:
+        return StreamingResponse(
+            content=response.aiter_text(),
+            status_code=response.status_code,
+            headers=response.headers,
+        )
 
-    return Response(
-        content=response.content,
-        status_code=response.status_code,
-        headers=dict(response.headers),
-    )
+        # # Cache the response headers and status code
+        # duration = round((time.monotonic() - start_time) * 1000, 2)
+        #
+        # log_data = {
+        #     "timestamp": datetime.now().isoformat(),
+        #     "method": method,
+        #     "url": path,
+        #     "request_headers": headers,
+        #     "request_body": body.decode() if body else "",
+        #     "response_headers": response_headers,
+        #     "response_body": "[streaming content]",
+        #     "duration_ms": duration,
+        # }
+        #
+        # # Log asynchronously
+        # log_executor.submit(logger.info, log_data)
 
 
 @app.on_event("shutdown")

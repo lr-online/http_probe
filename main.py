@@ -4,18 +4,21 @@ import time
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
-from httpx import AsyncClient, Timeout, ReadTimeout
+from httpx import AsyncClient, Timeout, HTTPError, ReadTimeout
 from loguru import logger
 
 load_dotenv()
 
-# 创建一个新的logger实例
 record_logger = logger.bind()
 
-# 为这个logger实例配置一个handler，将日志信息写入到指定的文件中
 record_logger.remove()
-record_logger.add("logs/record.log", format="{message}", enqueue=True, rotation="100 MB", retention="10 days")
-
+record_logger.add(
+    "logs/record.log",
+    format="{message}",
+    enqueue=True,
+    rotation="100 MB",
+    retention="10 days",
+)
 
 app = FastAPI()
 
@@ -28,15 +31,13 @@ async def startup_event():
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    target_url = os.getenv("TARGET_URL")
+    target_url = os.getenv("TARGET_URL", "https://httpbin.org")
     start_time = time.time()
 
-    # 复制请求
     method = request.method
     headers = dict(request.headers)
     body = await request.body()
 
-    # 使用 httpx 转发请求
     try:
         response = await app.state.client.request(
             method=method,
@@ -45,8 +46,8 @@ async def log_requests(request: Request, call_next):
             content=body,
         )
 
-        # 记录响应
         log_data = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
             "method": method,
             "url": request.url.path,
             "request_headers": headers,
@@ -57,7 +58,6 @@ async def log_requests(request: Request, call_next):
         }
         record_logger.info(log_data)
 
-        # 返回响应
         return Response(
             content=response.content,
             status_code=response.status_code,
@@ -66,3 +66,9 @@ async def log_requests(request: Request, call_next):
     except ReadTimeout as e:
         logger.error(f"ReadTimeout: {e}")
         return Response(content="ReadTimeout", status_code=504)
+    except HTTPError as e:
+        logger.error(f"HTTPError: {e}")
+        return Response(content="HTTPError", status_code=500)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return Response(content="Unexpected error", status_code=500)

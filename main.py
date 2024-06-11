@@ -28,9 +28,11 @@ async def log_requests(request: Request, call_next):
 
     method = request.method
     headers = dict(request.headers)
+    headers["host"] = TARGET_URL.replace("http://", "").replace("https://", "")
+
     body = await request.body()
 
-    async with AsyncClient(timeout=Timeout(300)) as client:
+    async with AsyncClient(timeout=Timeout(300), verify=False) as client:
         response = await client.request(
             method=method,
             url=TARGET_URL + request.url.path,

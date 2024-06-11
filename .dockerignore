@@ -1,0 +1,142 @@
+# Ignore .git directory
+.git
+.gitignore
+
+# Ignore Python virtual environments
+.venv/
+venv/
+ENV/
+env/
+Env/
+ENV.bak/
+env.bak/
+venv.bak/
+
+# Ignore environment variable files
+.env
+.env.*
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore Docker specific files
+Dockerfile
+docker-compose.yml
+*.log
+
+# Ignore local development files
+.vscode/
+.idea/
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore test and coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Ignore distribution / packaging files
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore PyInstaller files
+*.manifest
+*.spec
+
+# Ignore mypy files
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ignore Pyre type checker files
+.pyre/
+
+# Ignore C extensions
+*.so
+
+# Ignore static analysis scan results
+scan/
+
+# Ignore SQLAlchemy migration files
+migrations/
+
+# General project files
+logs/
+*.log
+
+# Local development files
+*.iml
+.idea/
+*.ipr
+*.iws
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/dictionaries
+.idea/**/shelf/
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/shelf/
+.idea/**/dictionaries
+.idea/.idea/
+.idea/.idea.*
+
+# System files
+*.swp
+*~
+*~
+
+# Editor files
+*~
+*.swp
+
+# Python egg
+*.egg
+*.egg-info
+dist/
+build/
+eggs/
+*.egg-info
+.installed.cfg
+lib/
+parts/
+sdist/
+var/
+
+# Unit test / coverage reports
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*,cover
+.hypothesis/
+.pytest_cache/

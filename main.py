@@ -1,10 +1,11 @@
 import os
 import time
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import StreamingResponse
 from httpx import AsyncClient, Timeout
 from loguru import logger
 
@@ -35,72 +36,50 @@ client = AsyncClient(timeout=Timeout(30), verify=False)
 async def log_requests(request: Request, call_next):
     start_time = time.monotonic()
 
-    method = request.method
-    path = request.url.path
     headers = dict(request.headers)
     headers["host"] = TARGET_URL.replace("http://", "").replace("https://", "")
 
     body = await request.body()
 
-    # version 1: works
-    # response = await client.request(
-    #     method=method,
-    #     url=TARGET_URL + path,
-    #     headers=headers,
-    #     content=body,
-    # )
-    # return Response(
-    #     content=response.content,
-    #     status_code=response.status_code,
-    #     headers=response.headers,
-    # )
-
-    # version 2: works
-    # async with client.stream(
-    #         method=method,
-    #         url=TARGET_URL + path,
-    #         headers=headers,
-    #         content=body,
-    # ) as response:
-    #     response_content = ""
-    #     async for chunk in response.aiter_text():
-    #         response_content += chunk
-    #
-    #     return StreamingResponse(
-    #         content=response_content,
-    #         status_code=response.status_code,
-    #         headers=response.headers,
-    #     )
-
-    # version 3: not working
-    async with client.stream(
+    async def aiter_text_generator(method, url, headers, content):
+        async with client.stream(
             method=method,
-            url=TARGET_URL + path,
+            url=url,
             headers=headers,
-            content=body,
-    ) as response:
-        return StreamingResponse(
-            content=response.aiter_text(),
-            status_code=response.status_code,
-            headers=response.headers,
-        )
+            content=content,
+        ) as response:
+            yield response.headers, response.status_code
+            async for chunk in response.aiter_raw():
+                yield chunk
 
-        # # Cache the response headers and status code
-        # duration = round((time.monotonic() - start_time) * 1000, 2)
-        #
-        # log_data = {
-        #     "timestamp": datetime.now().isoformat(),
-        #     "method": method,
-        #     "url": path,
-        #     "request_headers": headers,
-        #     "request_body": body.decode() if body else "",
-        #     "response_headers": response_headers,
-        #     "response_body": "[streaming content]",
-        #     "duration_ms": duration,
-        # }
-        #
-        # # Log asynchronously
-        # log_executor.submit(logger.info, log_data)
+    generator = aiter_text_generator(
+        method=request.method,
+        url=TARGET_URL + request.url.path,
+        headers=headers,
+        content=body,
+    )
+
+    response_headers, status_code = await anext(generator)
+    duration = round((time.monotonic() - start_time) * 1000, 2)
+
+    log_data = {
+        "timestamp": datetime.now().isoformat(),
+        "method": request.method,
+        "url": request.url.path,
+        "request_headers": headers,
+        "request_body": body.decode() if body else "",
+        "response_headers": response_headers,
+        # "response_body": "[streaming content]",
+        "duration_ms": duration,
+    }
+
+    # Log asynchronously
+    log_executor.submit(logger.info, log_data)
+
+    stream_response = StreamingResponse(
+        generator, headers=response_headers, status_code=int(status_code)
+    )
+    return stream_response
 
 
 @app.on_event("shutdown")
